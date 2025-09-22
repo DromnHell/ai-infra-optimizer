@@ -39,7 +39,7 @@ def ingestion_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     file_path = find_json_file("rapport.json")
     if file_path is None:
-        state["new_entries"] = []
+        state["new_entry"] = []
         return state
 
     with open(file_path, "r") as f:
@@ -50,17 +50,17 @@ def ingestion_node(state: Dict[str, Any]) -> Dict[str, Any]:
     last_ts = state.get("last_timestamp")
 
     if last_ts is None:
-        new_entries = [data[0]]
-        state["last_timestamp"] = new_entries[0]["timestamp"]
+        new_entry = data[0]
+        state["last_timestamp"] = new_entry["timestamp"]
     else:
         newer = [e for e in data if e["timestamp"] > last_ts]
         if newer:
-            new_entries = [newer[0]]
-            state["last_timestamp"] = new_entries[0]["timestamp"]
+            new_entry = newer[0]
+            state["last_timestamp"] = new_entry["timestamp"]
         else:
-            new_entries = []
+            new_entry = []
 
-    state["new_entries"] = new_entries
+    state["new_entry"] = new_entry
     return state
 
 def detect_anomalies(entry: Dict[str, Any]) -> List[str]:
@@ -70,16 +70,25 @@ def detect_anomalies(entry: Dict[str, Any]) -> List[str]:
     anomalies = []
 
     rules = {
-        "cpu_usage": lambda v: f"High CPU({v}%)" if v > 80 else None,
+        "cpu_usage": lambda v: f"High CPU ({v}%)" if v > 80 else None,
+        "memory_usage": lambda v: f"High memory usage ({v}%)" if v > 85 else None,
+        "disk_usage": lambda v: f"High disk usage ({v}%)" if v > 90 else None,
         "latency_ms": lambda v: f"High latency ({v} ms)" if v > 200 else None,
         "error_rate": lambda v: f"Abnormal error rate ({v*100:.1f}%)" if v > 0.05 else None,
-        "temperature_celsius": lambda v: f"High temperature({v} °C)" if v > 75 else None,
+        "temperature_celsius": lambda v: f"High temperature ({v} °C)" if v > 75 else None,
+        "io_wait": lambda v: f"High I/O wait ({v}%)" if v > 20 else None,
+        "thread_count": lambda v: f"Too many threads ({v})" if v > 500 else None,
+        "active_connections": lambda v: f"Too many active connections ({v})" if v > 200 else None,
+        "network_in_kbps": lambda v: f"High network input ({v} kbps)" if v > 10000 else None,
+        "network_out_kbps": lambda v: f"High network output ({v} kbps)" if v > 10000 else None,
+        "power_consumption_watts": lambda v: f"High power consumption ({v} W)" if v > 400 else None,
+        "uptime_seconds": lambda v: f"Frequent restarts (uptime {v//3600}h)" if v < 3600 else None,
         "service_status": lambda v: [
             msg for k, msg in [
                 ("database", "Database offline"),
                 ("api_gateway", "API Gateway degraded"),
                 ("cache", "Cache degraded")
-            ] if v.get(k) != "online"
+            ] if v.get(k) not in ("online", None)
         ] or None
     }
 
@@ -98,11 +107,11 @@ def rule_analysis_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     The “rule analysis” node of the graph that detects anomalies and update the state with it.
     """
+    entry = state.get("new_entry", [])
     anomalies_per_entry = []
-    for entry in state.get("new_entries", []):
-        anomalies = detect_anomalies(entry)
-        if anomalies:
-            anomalies_per_entry.append({"entry": entry, "anomalies": anomalies})
+    anomalies = detect_anomalies(entry)
+    if anomalies:
+        anomalies_per_entry.append({"entry": entry, "anomalies": anomalies})
     state["anomalies_per_entry"] = anomalies_per_entry
     return state
 
@@ -126,7 +135,7 @@ def get_llm(provider = "mock"):
     elif provider == "mistral":
         api_key = os.getenv("MISTRAL_API_KEY")
         from langchain_mistralai import ChatMistralAI
-        return ChatMistralAI(model = "mistral-medium", temperature = 0.0, mistral_api_key = api_key)
+        return ChatMistralAI(model = "mistral-small", temperature = 0.0, mistral_api_key = api_key)
     elif provider == "mock":
         from mock_llm import MockLLM
         return MockLLM()
@@ -136,7 +145,6 @@ def get_llm(provider = "mock"):
 def llm_analysis_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     The “LLM analysis” node of the graph that calls an LLM to analyze the heuristics monitoring anomalies report.
-    Always format the input as a string for the LLM.
     """
     provider = state.get("provider", "mock")
     llm = get_llm(provider)
@@ -146,28 +154,24 @@ def llm_analysis_node(state: Dict[str, Any]) -> Dict[str, Any]:
         state["llm_report"] = 'No problem detected.'
         return state
 
-    prompt_texts = []
-    for item in anomalies_list:
-        entry = item.get("entry", {})
-        anomalies = item.get("anomalies", [])
-        prompt = f"""
+    item = anomalies_list[0]
+    entry = item.get("entry", {})
+    anomalies = item.get("anomalies", [])
+    prompt =\
+    f"""
     Here are the metrics measured: {entry}
     Here are the anomalies detected by rules: {anomalies}
-
+    
     1. Identifies potential “weak signals” or suspicious combinations.
     2. Provides practical recommendations for a CTO.
     3. Returns the associated recommendations in a structured Markdown format with no title and the following sections:
-   - **Weak Signals and Recommendations:** for each anomaly, provide a subsection with numbered title and a list of recommendations (bold the recommendation titles)
-   - **Summary:** a short paragraph summarizing overall system health and any required actions
-
+    - **Weak Signals and Recommendations:** for each anomaly, provide a subsection with numbered title and a list of recommendations (bold the recommendation titles)
+    - **Summary:** a short paragraph summarizing overall system health and any required actions
+    
     The output must be ready for console display or email.
     """
 
-    prompt_texts.append(prompt.strip())
-
-    full_prompt = "\n\n".join(prompt_texts)
-
-    response = llm.invoke(full_prompt)
+    response = llm.invoke(prompt)
 
     state["llm_report"] = extract_text(response, provider)
 
@@ -178,7 +182,7 @@ def output_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     The “output” node of the graph that displays only when a new input is detected.
     """
-    if not state.get("new_entries"):
+    if not state.get("new_entry"):
         print("No new data yet. Waiting...")
         return state
 

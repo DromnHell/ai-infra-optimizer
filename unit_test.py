@@ -50,8 +50,9 @@ def test_ingestion_node_first_entry(tmp_path, monkeypatch):
 
     state = {"last_timestamp": None}
     new_state = ingestion_node(state)
-    assert "new_entries" in new_state
+    assert "new_entry" in new_state
     assert new_state["last_timestamp"] == 1
+    assert new_state["new_entry"]["timestamp"] == 1
 
 def test_ingestion_node_newer_entry(tmp_path, monkeypatch):
     file = tmp_path / "rapport.json"
@@ -64,7 +65,7 @@ def test_ingestion_node_newer_entry(tmp_path, monkeypatch):
     state = {"last_timestamp": 1}
     new_state = ingestion_node(state)
     assert new_state["last_timestamp"] == 2
-    assert new_state["new_entries"][0]["timestamp"] == 2
+    assert new_state["new_entry"]["timestamp"] == 2
 
 def test_ingestion_node_no_new_entry(tmp_path, monkeypatch):
     file = tmp_path / "rapport.json"
@@ -76,7 +77,7 @@ def test_ingestion_node_no_new_entry(tmp_path, monkeypatch):
 
     state = {"last_timestamp": 1}
     new_state = ingestion_node(state)
-    assert new_state["new_entries"] == []
+    assert new_state["new_entry"] == []
 
 
 ### --- Tests for detect_anomalies --- ###
@@ -84,7 +85,7 @@ def test_ingestion_node_no_new_entry(tmp_path, monkeypatch):
 def test_detect_anomalies_cpu_latency():
     entry = {"cpu_usage": 90, "latency_ms": 250}
     anomalies = detect_anomalies(entry)
-    assert "High CPU(90%)" in anomalies
+    assert "High CPU (90%)" in anomalies
     assert "High latency (250 ms)" in anomalies
 
 def test_detect_anomalies_error_temp_service():
@@ -104,14 +105,15 @@ def test_detect_anomalies_error_temp_service():
 
 def test_rule_analysis_node_with_anomalies():
     entry = {"cpu_usage": 95}
-    state = {"new_entries": [entry]}
+    state = {"new_entry": entry}
     new_state = rule_analysis_node(state)
     assert "anomalies_per_entry" in new_state
     assert new_state["anomalies_per_entry"][0]["anomalies"]
 
+
 def test_rule_analysis_node_no_anomalies():
     entry = {"cpu_usage": 10}
-    state = {"new_entries": [entry]}
+    state = {"new_entry": [entry]}
     new_state = rule_analysis_node(state)
     assert new_state["anomalies_per_entry"] == []
 
@@ -170,7 +172,7 @@ def test_output_node_no_new_entries(capsys):
 
 def test_output_node_with_anomalies(capsys):
     state = {
-        "new_entries": [{"timestamp": 1}],
+        "new_entry": [{"timestamp": 1}],
         "last_timestamp": 1,
         "anomalies_per_entry": [{"anomalies": ["High CPU(90%)"]}],
         "llm_report": "Test report"
