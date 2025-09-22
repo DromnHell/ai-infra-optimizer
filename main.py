@@ -1,4 +1,5 @@
 import os
+import argparse
 import json
 import time
 from pathlib import Path
@@ -8,12 +9,11 @@ from langgraph.graph import StateGraph, END, START
 from typing import Dict, Any, List
 
 from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
+from langchain_mistralai import ChatMistralAI
 from mock_llm import MockLLM
 
-
 load_dotenv()
-api_key = os.getenv("OPENAI_API_KEY")
-
 
 def find_json_file(filename = "rapport.json") -> Path:
     """
@@ -112,13 +112,20 @@ def rule_analysis_node(state: Dict[str, Any]) -> Dict[str, Any]:
     return state
 
 
-def get_llm(provider = "mock"):
+def get_llm(provider="mock"):
     if provider == "openai":
+        api_key = os.getenv("OPENAI_API_KEY")
         return ChatOpenAI(model = "gpt-4o-mini", temperature = 0.0, openai_api_key = api_key)
+    elif provider == "claude":
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        return ChatAnthropic(model = "claude-3-opus-20240229", temperature = 0.0, anthropic_api_key = api_key)
+    elif provider == "mistral":
+        api_key = os.getenv("MISTRAL_API_KEY")
+        return ChatMistralAI(model = "mistral-medium", temperature=0.0, mistral_api_key = api_key)
     elif provider == "mock":
         return MockLLM()
     else:
-        raise ValueError(f"Provider {provider} non supporté.")
+        raise ValueError(f"Provider {provider} not supported.")
 
 def llm_analysis_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -214,15 +221,31 @@ def check_api_key(var_name: str):
 
 
 def main():
-    check_api_key("OPENAI_API_KEY")
+    parser = argparse.ArgumentParser(description = "Monitoring with LLM anomaly detection")
+    parser.add_argument(
+        "--provider",
+        type = str,
+        default = "mock",
+        choices = ["mock", "openai", "claude", "mistral"],
+        help = "LLM provider to use (default: mock)",
+    )
+    args = parser.parse_args()
+
+    if args.provider == "openai":
+        check_api_key("OPENAI_API_KEY")
+    elif args.provider == "claude":
+        check_api_key("ANTHROPIC_API_KEY")
+    elif args.provider == "mistral":
+        check_api_key("MISTRAL_API_KEY")
+
     app = build_graph()
 
     state = {
         "last_timestamp": None,
-        "provider": "mock"
+        "provider": args.provider,
     }
 
-    print("Monitoring started with LangGraph...")
+    print("Monitoring started...")
     while True:
         state = app.invoke(state)
         time.sleep(3)
