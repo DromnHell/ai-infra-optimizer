@@ -7,7 +7,7 @@ class MockLLM:
     Returns a dummy but structured analysis.
     """
 
-    def invoke(self, input: Dict) -> Dict:
+    def invoke(self, input: Dict):
         fake_findings = [
             "High CPU usage detected. Recommendation: distribute the load.",
             "Abnormal latency observed. Recommendation: check the API gateway.",
@@ -16,4 +16,4 @@ class MockLLM:
 
         response = random.choice(fake_findings)
 
-        return {"text": f"{response}"}
+        return response

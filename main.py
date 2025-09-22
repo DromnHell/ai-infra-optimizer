@@ -107,19 +107,26 @@ def rule_analysis_node(state: Dict[str, Any]) -> Dict[str, Any]:
     return state
 
 
-def get_llm(provider="mock"):
+def extract_text(response, provider):
+    """
+    Extracts the text from the LLM response based on the provider.
+    """
+    if provider == "openai" or provider == "mistral":
+        return response.content if response.content else ""
+    elif provider == "mock":
+        return response
+    else:
+        raise ValueError(f"'{provider}' is Unsupported ")
+
+def get_llm(provider = "mock"):
     if provider == "openai":
         api_key = os.getenv("OPENAI_API_KEY")
         from langchain_openai import ChatOpenAI
         return ChatOpenAI(model = "gpt-4o-mini", temperature = 0.0, openai_api_key = api_key)
-    elif provider == "claude":
-        api_key = os.getenv("ANTHROPIC_API_KEY")
-        from langchain_anthropic import ChatAnthropic
-        return ChatAnthropic(model = "claude-3-opus-20240229", temperature = 0.0, anthropic_api_key = api_key)
     elif provider == "mistral":
         api_key = os.getenv("MISTRAL_API_KEY")
         from langchain_mistralai import ChatMistralAI
-        return ChatMistralAI(model = "mistral-medium", temperature=0.0, mistral_api_key = api_key)
+        return ChatMistralAI(model = "mistral-medium", temperature = 0.0, mistral_api_key = api_key)
     elif provider == "mock":
         from mock_llm import MockLLM
         return MockLLM()
@@ -149,22 +156,20 @@ def llm_analysis_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     1. Identifies potential “weak signals” or suspicious combinations.
     2. Provides practical recommendations for a CTO.
-    3. Returns everything in JSON with two fields:
-       - “signals”: list of anomalies/weak signals
-       - “recommendations”: list of actions with explanations
+    3. Returns the associated recommendations in a structured Markdown format with no title and the following sections:
+   - **Weak Signals and Recommendations:** for each anomaly, provide a subsection with numbered title and a list of recommendations (bold the recommendation titles)
+   - **Summary:** a short paragraph summarizing overall system health and any required actions
+
+    The output must be ready for console display or email.
     """
-        prompt_texts.append(prompt.strip())
+
+    prompt_texts.append(prompt.strip())
 
     full_prompt = "\n\n".join(prompt_texts)
 
     response = llm.invoke(full_prompt)
 
-    if isinstance(response, dict) and "text" in response:
-        state["llm_report"] = response["text"]
-    elif isinstance(response, str):
-        state["llm_report"] = response
-    else:
-        state["llm_report"] = '{"signals": [], "recommendations": []}'
+    state["llm_report"] = extract_text(response, provider)
 
     return state
 
@@ -184,7 +189,7 @@ def output_node(state: Dict[str, Any]) -> Dict[str, Any]:
     anomalies = [a for item in state.get("anomalies_per_entry", [])
                  for a in item.get("anomalies", [])]
     if anomalies:
-        print("Detected anomalies :", anomalies)
+        print("Detected anomalies :", ", ".join(anomalies) + ".")
     else:
         print("Detected anomalies : None.")
 
@@ -210,12 +215,12 @@ def build_graph():
     return app
 
 
-def check_api_key(var_name: str):
+def check_api_key(var_name: str, provider: str):
     key = os.getenv(var_name)
     if not key:
         raise ValueError(f"Variable {var_name} is missing.")
-    if not key.startswith("sk-"):
-        raise ValueError(f"Variable {var_name} seems wrong : {key[:5]}...")
+    if provider == "openai" and not key.startswith("sk-"):
+        raise ValueError(f"Variable {var_name} seems invalid for OpenAI: {key[:5]}…")
     return key
 
 
@@ -225,17 +230,15 @@ def main():
         "--provider",
         type = str,
         default = "mock",
-        choices = ["mock", "openai", "claude", "mistral"],
+        choices = ["mock", "openai", "mistral"],
         help = "LLM provider to use (default: mock)",
     )
     args = parser.parse_args()
 
     if args.provider == "openai":
-        check_api_key("OPENAI_API_KEY")
-    elif args.provider == "claude":
-        check_api_key("ANTHROPIC_API_KEY")
+        check_api_key("OPENAI_API_KEY", provider = "openai")
     elif args.provider == "mistral":
-        check_api_key("MISTRAL_API_KEY")
+        check_api_key("MISTRAL_API_KEY", provider = "mistral")
 
     app = build_graph()
 

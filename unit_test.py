@@ -133,13 +133,6 @@ def test_get_llm_openai(mock_chat, monkeypatch):
     llm = get_llm("openai")
     assert hasattr(llm, "invoke")
 
-@patch("langchain_anthropic.ChatAnthropic")
-def test_get_llm_claude(mock_chat, monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "fake")
-    mock_chat.return_value = MagicMock(invoke = lambda x: "ok")
-    llm = get_llm("claude")
-    assert hasattr(llm, "invoke")
-
 @patch("langchain_mistralai.ChatMistralAI")
 def test_get_llm_mistral(mock_chat, monkeypatch):
     monkeypatch.setenv("MISTRAL_API_KEY", "fake")
@@ -201,23 +194,23 @@ def test_build_graph():
 def test_check_api_key_missing(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising = False)
     with pytest.raises(ValueError):
-        check_api_key("OPENAI_API_KEY")
+        check_api_key("OPENAI_API_KEY", "openai")
 
-def test_check_api_key_invalid(monkeypatch):
+def test_check_api_key_invalid_for_openAI(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "abc123")
     with pytest.raises(ValueError):
-        check_api_key("OPENAI_API_KEY")
+        check_api_key("OPENAI_API_KEY", "openai")
 
 def test_check_api_key_valid(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-validkey123")
-    result = check_api_key("OPENAI_API_KEY")
+    result = check_api_key("OPENAI_API_KEY", "openai")
     assert result == "sk-validkey123"
 
 ### -------- Tests main --------
 
 @patch("main.build_graph")
 @patch("main.check_api_key")
-@patch("time.sleep", side_effect = Exception("stop"))
+@patch("time.sleep", side_effect=Exception("stop"))
 def test_main_with_mock(mock_sleep, mock_check, mock_build, monkeypatch):
     mock_app = MagicMock()
     mock_app.invoke.side_effect = [{"provider": "mock"}]
@@ -226,7 +219,7 @@ def test_main_with_mock(mock_sleep, mock_check, mock_build, monkeypatch):
     test_args = ["prog", "--provider", "mock"]
     monkeypatch.setattr(sys, "argv", test_args)
 
-    with pytest.raises(Exception, match = "stop"):
+    with pytest.raises(Exception, match="stop"):
         main()
 
     mock_check.assert_not_called()
@@ -245,23 +238,7 @@ def test_main_with_openai(mock_sleep, mock_check, mock_build, monkeypatch):
     with pytest.raises(Exception, match = "stop"):
         main()
 
-    mock_check.assert_called_once_with("OPENAI_API_KEY")
-
-@patch("main.build_graph")
-@patch("main.check_api_key")
-@patch("time.sleep", side_effect = Exception("stop"))
-def test_main_with_claude(mock_sleep, mock_check, mock_build, monkeypatch):
-    mock_app = MagicMock()
-    mock_app.invoke.side_effect = [{"provider": "claude"}]
-    mock_build.return_value = mock_app
-
-    test_args = ["prog", "--provider", "claude"]
-    monkeypatch.setattr(sys, "argv", test_args)
-
-    with pytest.raises(Exception, match = "stop"):
-        main()
-
-    mock_check.assert_called_once_with("ANTHROPIC_API_KEY")
+    mock_check.assert_called_once_with("OPENAI_API_KEY", provider = "openai")
 
 @patch("main.build_graph")
 @patch("main.check_api_key")
@@ -277,4 +254,4 @@ def test_main_with_mistral(mock_sleep, mock_check, mock_build, monkeypatch):
     with pytest.raises(Exception, match = "stop"):
         main()
 
-    mock_check.assert_called_once_with("MISTRAL_API_KEY")
+    mock_check.assert_called_once_with("MISTRAL_API_KEY", provider = "mistral")
