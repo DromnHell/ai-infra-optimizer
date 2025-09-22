@@ -252,7 +252,7 @@ def main():
         "provider": args.provider,
     }
 
-    print("L'analyse de l'infrastructure en cours...")
+    print("Analyse de l'infrastructure en cours...")
     while True:
         state = app.invoke(state)
         time.sleep(3)
