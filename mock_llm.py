@@ -9,9 +9,9 @@ class MockLLM:
 
     def invoke(self, input: Dict):
         fake_findings = [
-            "High CPU usage detected. Recommendation: distribute the load.",
-            "Abnormal latency observed. Recommendation: check the API gateway.",
-            "Memory saturated. Recommendation: increase RAM.",
+            "Utilisation élevée du processeur détectée. Recommandation : répartir la charge.",
+            "Latence anormale observée. Recommandation : vérifier la passerelle API.",
+            "Mémoire saturée. Recommandation : augmenter la RAM."
         ]
 
         response = random.choice(fake_findings)

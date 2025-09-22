@@ -85,8 +85,8 @@ def test_ingestion_node_no_new_entry(tmp_path, monkeypatch):
 def test_detect_anomalies_cpu_latency():
     entry = {"cpu_usage": 90, "latency_ms": 250}
     anomalies = detect_anomalies(entry)
-    assert "High CPU (90%)" in anomalies
-    assert "High latency (250 ms)" in anomalies
+    assert "CPU élevé (90%)" in anomalies
+    assert "Latence élevée (250 ms)" in anomalies
 
 def test_detect_anomalies_error_temp_service():
     entry = {
@@ -95,10 +95,10 @@ def test_detect_anomalies_error_temp_service():
         "service_status": {"database": "offline", "api_gateway": "degraded", "cache": "online"},
     }
     anomalies = detect_anomalies(entry)
-    assert any("error rate" in a for a in anomalies)
-    assert any("temperature" in a for a in anomalies)
-    assert "Database offline" in anomalies
-    assert "API Gateway degraded" in anomalies
+    assert any("Taux d'erreur anormal" in a for a in anomalies)
+    assert any("Temperature élevée" in a for a in anomalies)
+    assert any("Base de données hors ligne" in a for a in anomalies)
+    assert any("API Gateway dégradée" in a for a in anomalies)
 
 
 ### --- Tests for rule_analysis_node --- ###
@@ -148,7 +148,7 @@ def test_get_llm_mistral(mock_chat, monkeypatch):
 def test_llm_analysis_node_no_anomalies(monkeypatch):
     state = {"anomalies_per_entry": [], "provider": "mock"}
     new_state = llm_analysis_node(state)
-    assert new_state["llm_report"] == "No problem detected."
+    assert new_state["llm_report"] == "Aucun problème détecté."
 
 def test_llm_analysis_node_with_anomalies(monkeypatch):
     state = {
@@ -167,20 +167,20 @@ def test_output_node_no_new_entries(capsys):
     state = {"new_entries": []}
     new_state = output_node(state)
     captured = capsys.readouterr()
-    assert "No new data yet" in captured.out
+    assert "Pas de nouvelles entrées" in captured.out
     assert new_state == state
 
 def test_output_node_with_anomalies(capsys):
     state = {
         "new_entry": [{"timestamp": 1}],
         "last_timestamp": 1,
-        "anomalies_per_entry": [{"anomalies": ["High CPU(90%)"]}],
+        "anomalies_per_entry": [{"anomalies": ["CPU élevé (90%)"]}],
         "llm_report": "Test report"
     }
     output_node(state)
     captured = capsys.readouterr()
-    assert "Anomalies report" in captured.out
-    assert "High CPU" in captured.out
+    assert "Rapport d'anomalies" in captured.out
+    assert "CPU élevé" in captured.out
     assert "Test report" in captured.out
 
 
