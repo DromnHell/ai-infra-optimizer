@@ -70,24 +70,24 @@ def detect_anomalies(entry: Dict[str, Any]) -> List[str]:
     anomalies = []
 
     rules = {
-        "cpu_usage": lambda v: f"High CPU ({v}%)" if v > 80 else None,
-        "memory_usage": lambda v: f"High memory usage ({v}%)" if v > 85 else None,
-        "disk_usage": lambda v: f"High disk usage ({v}%)" if v > 90 else None,
-        "latency_ms": lambda v: f"High latency ({v} ms)" if v > 200 else None,
-        "error_rate": lambda v: f"Abnormal error rate ({v*100:.1f}%)" if v > 0.05 else None,
-        "temperature_celsius": lambda v: f"High temperature ({v} °C)" if v > 75 else None,
-        "io_wait": lambda v: f"High I/O wait ({v}%)" if v > 20 else None,
-        "thread_count": lambda v: f"Too many threads ({v})" if v > 500 else None,
-        "active_connections": lambda v: f"Too many active connections ({v})" if v > 200 else None,
-        "network_in_kbps": lambda v: f"High network input ({v} kbps)" if v > 10000 else None,
-        "network_out_kbps": lambda v: f"High network output ({v} kbps)" if v > 10000 else None,
-        "power_consumption_watts": lambda v: f"High power consumption ({v} W)" if v > 400 else None,
-        "uptime_seconds": lambda v: f"Frequent restarts (uptime {v//3600}h)" if v < 3600 else None,
+        "cpu_usage": lambda v: f"CPU élevé ({v}%)" if v > 80 else None,
+        "memory_usage": lambda v: f"Utilisation élevée de la mémoire ({v}%)" if v > 85 else None,
+        "disk_usage": lambda v: f"Utilisation élevée du disque ({v}%)" if v > 90 else None,
+        "latency_ms": lambda v: f"Latence élevée ({v} ms)" if v > 200 else None,
+        "error_rate": lambda v: f"Taux d'erreur anormal ({v*100:.1f}%)" if v > 0.05 else None,
+        "temperature_celsius": lambda v: f"Temperature élevée ({v} °C)" if v > 75 else None,
+        "io_wait": lambda v: f"Attente I/O élevée ({v}%)" if v > 20 else None,
+        "thread_count": lambda v: f"Trop de threads ({v})" if v > 500 else None,
+        "active_connections": lambda v: f"Trop de connexions actives ({v})" if v > 200 else None,
+        "network_in_kbps": lambda v: f"Entrée réseau élevée ({v} kbps)" if v > 10000 else None,
+        "network_out_kbps": lambda v: f"Sortie réseau élevée ({v} kbps)" if v > 10000 else None,
+        "power_consumption_watts": lambda v: f"Consommation électrique élevée ({v} W)" if v > 400 else None,
+        "uptime_seconds": lambda v: f"Redémarrages fréquents (uptime {v//3600}h)" if v < 3600 else None,
         "service_status": lambda v: [
             msg for k, msg in [
-                ("database", "Database offline"),
-                ("api_gateway", "API Gateway degraded"),
-                ("cache", "Cache degraded")
+                ("database", "Base de données hors ligne"),
+                ("api_gateway", "API Gateway dégradée"),
+                ("cache", "Cache dégradé")
             ] if v.get(k) not in ("online", None)
         ] or None
     }
@@ -151,8 +151,8 @@ def llm_analysis_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     anomalies_list = state.get("anomalies_per_entry", [])
     if not anomalies_list:
-        state["llm_report"] = 'No problem detected.'
-        state["llm_report"] = 'No problem detected.'
+        state["llm_report"] = 'Aucun problème détecté.'
+        state["llm_report"] = 'Aucun problème détecté.'
         return state
 
     item = anomalies_list[0]
@@ -160,16 +160,16 @@ def llm_analysis_node(state: Dict[str, Any]) -> Dict[str, Any]:
     anomalies = item.get("anomalies", [])
     prompt =\
     f"""
-    Here are the metrics measured: {entry}
-    Here are the anomalies detected by rules: {anomalies}
+    Voici les indicateurs mesurés : {entry}
+    Voici les anomalies détectées par les règles : {anomalies}
     
-    1. Identifies potential “weak signals” or suspicious combinations.
-    2. Provides practical recommendations for a CTO.
-    3. Returns the associated recommendations in a structured Markdown format with no title and the following sections:
-    - **Weak Signals and Recommendations:** for each anomaly, provide a subsection with numbered title and a list of recommendations (bold the recommendation titles)
-    - **Summary:** a short paragraph summarizing overall system health and any required actions
+    1. Identifie les « signaux faibles » potentiels ou les combinaisons suspectes.
+    2. Fournit des recommandations pratiques pour un directeur technique (CTO).
+    3. Renvoie les recommandations associées dans un format Markdown structuré sans titre et comprenant les sections suivantes :
+    - **Signaux faibles et recommandations :** pour chaque anomalie, fournit une sous-section avec un titre numéroté et une liste de recommandations (les titres des recommandations sont en gras)
+    - **Résumé :** un court paragraphe résumant l'état général du système et les actions requises
     
-    The output must be ready for console display or email.
+    Le résultat doit être prêt à être affiché sur la console ou envoyé par e-mail. Le résultat doit être écrit en français.
     """
 
     response = llm.invoke(prompt)
@@ -184,21 +184,21 @@ def output_node(state: Dict[str, Any]) -> Dict[str, Any]:
     The “output” node of the graph that displays only when a new input is detected.
     """
     if not state.get("new_entry"):
-        print("No new data yet. Waiting...")
+        print("Pas de nouvelles entrées. En attente...")
         return state
 
-    print("\n=== Anomalies report ===")
+    print("\n=== Rapport d'anomalies ===")
 
-    print("Timestamp :", state.get("last_timestamp"))
+    print("Horodatage :", state.get("last_timestamp"))
 
     anomalies = [a for item in state.get("anomalies_per_entry", [])
                  for a in item.get("anomalies", [])]
     if anomalies:
-        print("Detected anomalies :", ", ".join(anomalies) + ".")
+        print("Anomalies détectées :", ", ".join(anomalies) + ".")
     else:
-        print("Detected anomalies : None.")
+        print("Anomalies détectées : Aucune.")
 
-    print("Recommendations :\n", state.get("llm_report", []))
+    print("Recommandations :\n", state.get("llm_report", []))
     return state
 
 
@@ -252,7 +252,7 @@ def main():
         "provider": args.provider,
     }
 
-    print("Monitoring started...")
+    print("L'analyse de l'infrastructure en cours...")
     while True:
         state = app.invoke(state)
         time.sleep(3)
