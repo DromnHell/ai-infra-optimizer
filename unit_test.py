@@ -126,21 +126,21 @@ def test_get_llm_invalid_provider():
     with pytest.raises(ValueError):
         get_llm("doesnotexist")
 
-@patch("main.ChatOpenAI")
+@patch("langchain_openai.ChatOpenAI")
 def test_get_llm_openai(mock_chat, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "fake")
     mock_chat.return_value = MagicMock(invoke = lambda x: "ok")
     llm = get_llm("openai")
     assert hasattr(llm, "invoke")
 
-@patch("main.ChatAnthropic")
+@patch("langchain_anthropic.ChatAnthropic")
 def test_get_llm_claude(mock_chat, monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "fake")
     mock_chat.return_value = MagicMock(invoke = lambda x: "ok")
     llm = get_llm("claude")
     assert hasattr(llm, "invoke")
 
-@patch("main.ChatMistralAI")
+@patch("langchain_mistralai.ChatMistralAI")
 def test_get_llm_mistral(mock_chat, monkeypatch):
     monkeypatch.setenv("MISTRAL_API_KEY", "fake")
     mock_chat.return_value = MagicMock(invoke = lambda x: "ok")

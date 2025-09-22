@@ -8,11 +8,6 @@ from dotenv import load_dotenv
 from langgraph.graph import StateGraph, END, START
 from typing import Dict, Any, List
 
-from langchain_openai import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
-from langchain_mistralai import ChatMistralAI
-from mock_llm import MockLLM
-
 load_dotenv()
 
 def find_json_file(filename = "rapport.json") -> Path:
@@ -115,14 +110,18 @@ def rule_analysis_node(state: Dict[str, Any]) -> Dict[str, Any]:
 def get_llm(provider="mock"):
     if provider == "openai":
         api_key = os.getenv("OPENAI_API_KEY")
+        from langchain_openai import ChatOpenAI
         return ChatOpenAI(model = "gpt-4o-mini", temperature = 0.0, openai_api_key = api_key)
     elif provider == "claude":
         api_key = os.getenv("ANTHROPIC_API_KEY")
+        from langchain_anthropic import ChatAnthropic
         return ChatAnthropic(model = "claude-3-opus-20240229", temperature = 0.0, anthropic_api_key = api_key)
     elif provider == "mistral":
         api_key = os.getenv("MISTRAL_API_KEY")
+        from langchain_mistralai import ChatMistralAI
         return ChatMistralAI(model = "mistral-medium", temperature=0.0, mistral_api_key = api_key)
     elif provider == "mock":
+        from mock_llm import MockLLM
         return MockLLM()
     else:
         raise ValueError(f"Provider {provider} not supported.")
