@@ -135,7 +135,7 @@ def get_llm(provider = "mock"):
     elif provider == "mistral":
         api_key = os.getenv("MISTRAL_API_KEY")
         from langchain_mistralai import ChatMistralAI
-        return ChatMistralAI(model = "mistral-small", temperature = 0.0, mistral_api_key = api_key)
+        return ChatMistralAI(model = "mistral-medium", temperature = 0.0, mistral_api_key = api_key)
     elif provider == "mock":
         from mock_llm import MockLLM
         return MockLLM()
@@ -151,6 +151,7 @@ def llm_analysis_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     anomalies_list = state.get("anomalies_per_entry", [])
     if not anomalies_list:
+        state["llm_report"] = 'No problem detected.'
         state["llm_report"] = 'No problem detected.'
         return state
 
