@@ -67,39 +67,45 @@ def detect_anomalies(entry: Dict[str, Any]) -> List[str]:
     """
     Detects and returns anomalies based on monitoring heuristics.
     """
-    anomalies = []
+    anomalies: List[str] = []
 
-    rules = {
-        "cpu_usage": lambda v: f"CPU élevé ({v}%)" if v > 80 else None,
-        "memory_usage": lambda v: f"Utilisation élevée de la mémoire ({v}%)" if v > 85 else None,
-        "disk_usage": lambda v: f"Utilisation élevée du disque ({v}%)" if v > 90 else None,
-        "latency_ms": lambda v: f"Latence élevée ({v} ms)" if v > 200 else None,
-        "error_rate": lambda v: f"Taux d'erreur anormal ({v*100:.1f}%)" if v > 0.05 else None,
-        "temperature_celsius": lambda v: f"Temperature élevée ({v} °C)" if v > 75 else None,
-        "io_wait": lambda v: f"Attente I/O élevée ({v}%)" if v > 20 else None,
-        "thread_count": lambda v: f"Trop de threads ({v})" if v > 500 else None,
-        "active_connections": lambda v: f"Trop de connexions actives ({v})" if v > 200 else None,
-        "network_in_kbps": lambda v: f"Entrée réseau élevée ({v} kbps)" if v > 10000 else None,
-        "network_out_kbps": lambda v: f"Sortie réseau élevée ({v} kbps)" if v > 10000 else None,
-        "power_consumption_watts": lambda v: f"Consommation électrique élevée ({v} W)" if v > 400 else None,
-        "uptime_seconds": lambda v: f"Redémarrages fréquents (uptime {v//3600}h)" if v < 3600 else None,
-        "service_status": lambda v: [
-            msg for k, msg in [
-                ("database", "Base de données hors ligne"),
-                ("api_gateway", "API Gateway dégradée"),
-                ("cache", "Cache dégradé")
-            ] if v.get(k) not in ("online", None)
-        ] or None
-    }
-
-    for key, func in rules.items():
-        if key in entry:
-            result = func(entry[key])
-            if result:
-                if isinstance(result, list):
-                    anomalies.extend(result)
-                else:
-                    anomalies.append(result)
+    for key, value in entry.items():
+        match key:
+            case "cpu_usage" if value > 80:
+                anomalies.append(f"CPU élevé ({value}%)")
+            case "memory_usage" if value > 85:
+                anomalies.append(f"Utilisation élevée de la mémoire ({value}%)")
+            case "disk_usage" if value > 90:
+                anomalies.append(f"Utilisation élevée du disque ({value}%)")
+            case "latency_ms" if value > 200:
+                anomalies.append(f"Latence élevée ({value} ms)")
+            case "error_rate" if value > 0.05:
+                anomalies.append(f"Taux d'erreur anormal ({value*100:.1f}%)")
+            case "temperature_celsius" if value > 75:
+                anomalies.append(f"Temperature élevée ({value} °C)")
+            case "io_wait" if value > 20:
+                anomalies.append(f"Attente I/O élevée ({value}%)")
+            case "thread_count" if value > 500:
+                anomalies.append(f"Trop de threads ({value})")
+            case "active_connections" if value > 200:
+                anomalies.append(f"Trop de connexions actives ({value})")
+            case "network_in_kbps" if value > 10000:
+                anomalies.append(f"Entrée réseau élevée ({value} kbps)")
+            case "network_out_kbps" if value > 10000:
+                anomalies.append(f"Sortie réseau élevée ({value} kbps)")
+            case "power_consumption_watts" if value > 400:
+                anomalies.append(f"Consommation électrique élevée ({value} W)")
+            case "uptime_seconds" if value < 3600:
+                anomalies.append(f"Redémarrages fréquents (uptime {value//3600}h)")
+            case "service_status":
+                msgs = [
+                    msg for k, msg in [
+                        ("database", "Base de données hors ligne"),
+                        ("api_gateway", "API Gateway dégradée"),
+                        ("cache", "Cache dégradé")
+                    ] if value.get(k) not in ("online", None)
+                ]
+                anomalies.extend(msgs)
 
     return anomalies
 
@@ -107,11 +113,11 @@ def rule_analysis_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     The “rule analysis” node of the graph that detects anomalies and update the state with it.
     """
-    entry = state.get("new_entry", [])
-    anomalies_per_entry = []
+    entry = state.get("new_entry")
+    anomalies_per_entry = dict()
     anomalies = detect_anomalies(entry)
     if anomalies:
-        anomalies_per_entry.append({"entry": entry, "anomalies": anomalies})
+        anomalies_per_entry = {"entry": entry, "anomalies": anomalies}
     state["anomalies_per_entry"] = anomalies_per_entry
     return state
 
@@ -149,15 +155,14 @@ def llm_analysis_node(state: Dict[str, Any]) -> Dict[str, Any]:
     provider = state.get("provider", "mock")
     llm = get_llm(provider)
 
-    anomalies_list = state.get("anomalies_per_entry", [])
-    if not anomalies_list:
-        state["llm_report"] = 'Aucun problème détecté.'
+    anomalies_per_entry = state.get("anomalies_per_entry")
+    if not anomalies_per_entry:
         state["llm_report"] = 'Aucun problème détecté.'
         return state
 
-    item = anomalies_list[0]
-    entry = item.get("entry", {})
-    anomalies = item.get("anomalies", [])
+    item = anomalies_per_entry
+    entry = item["entry"]
+    anomalies = item["anomalies"]
     prompt =\
     f"""
     Voici les indicateurs mesurés : {entry}
@@ -191,14 +196,14 @@ def output_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     print("Horodatage :", state.get("last_timestamp"))
 
-    anomalies = [a for item in state.get("anomalies_per_entry", [])
-                 for a in item.get("anomalies", [])]
+    anomalies = state.get("anomalies_per_entry", {}).get("anomalies", [])
+
     if anomalies:
         print("Anomalies détectées :", ", ".join(anomalies) + ".")
     else:
         print("Anomalies détectées : Aucune.")
 
-    print("Recommandations :\n", state.get("llm_report", []))
+    print("Recommandations :\n", state.get("llm_report"))
     return state
 
 

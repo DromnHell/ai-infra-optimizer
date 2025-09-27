@@ -108,14 +108,13 @@ def test_rule_analysis_node_with_anomalies():
     state = {"new_entry": entry}
     new_state = rule_analysis_node(state)
     assert "anomalies_per_entry" in new_state
-    assert new_state["anomalies_per_entry"][0]["anomalies"]
-
+    assert new_state["anomalies_per_entry"]["anomalies"]
 
 def test_rule_analysis_node_no_anomalies():
     entry = {"cpu_usage": 10}
-    state = {"new_entry": [entry]}
+    state = {"new_entry": entry}
     new_state = rule_analysis_node(state)
-    assert new_state["anomalies_per_entry"] == []
+    assert new_state["anomalies_per_entry"] == {}
 
 
 ### --- Tests for get_llm --- ###
@@ -146,19 +145,24 @@ def test_get_llm_mistral(mock_chat, monkeypatch):
 ### --- Tests for llm_analysis_node --- ###
 
 def test_llm_analysis_node_no_anomalies(monkeypatch):
-    state = {"anomalies_per_entry": [], "provider": "mock"}
+    state = {"anomalies_per_entry": {}, "provider": "mock"}
     new_state = llm_analysis_node(state)
     assert new_state["llm_report"] == "Aucun problème détecté."
 
 def test_llm_analysis_node_with_anomalies(monkeypatch):
     state = {
-        "anomalies_per_entry": [
-            {"entry": {"cpu_usage": 90}, "anomalies": ["High CPU(90%)"]}
-        ],
+        "anomalies_per_entry": {
+            "entry": {"cpu_usage": 90},
+            "anomalies": ["High CPU(90%)"]
+        },
         "provider": "mock"
     }
     new_state = llm_analysis_node(state)
-    assert new_state["llm_report"]
+
+    assert isinstance(new_state["llm_report"], str)
+    assert new_state["llm_report"].strip()
+
+    assert "Recommandation" in new_state["llm_report"]
 
 
 ### --- Tests for output_node --- ###
@@ -174,14 +178,14 @@ def test_output_node_with_anomalies(capsys):
     state = {
         "new_entry": [{"timestamp": 1}],
         "last_timestamp": 1,
-        "anomalies_per_entry": [{"anomalies": ["CPU élevé (90%)"]}],
-        "llm_report": "Test report"
+        "anomalies_per_entry": {"anomalies": ["CPU élevé (90%)"]},
+        "llm_report": "Rapport de test"
     }
     output_node(state)
     captured = capsys.readouterr()
     assert "Rapport d'anomalies" in captured.out
     assert "CPU élevé" in captured.out
-    assert "Test report" in captured.out
+    assert "Rapport de test" in captured.out
 
 
 ### --- Tests for build_graph --- ###
@@ -212,7 +216,7 @@ def test_check_api_key_valid(monkeypatch):
 
 @patch("main.build_graph")
 @patch("main.check_api_key")
-@patch("time.sleep", side_effect=Exception("stop"))
+@patch("time.sleep", side_effect = Exception("stop"))
 def test_main_with_mock(mock_sleep, mock_check, mock_build, monkeypatch):
     mock_app = MagicMock()
     mock_app.invoke.side_effect = [{"provider": "mock"}]
@@ -221,7 +225,7 @@ def test_main_with_mock(mock_sleep, mock_check, mock_build, monkeypatch):
     test_args = ["prog", "--provider", "mock"]
     monkeypatch.setattr(sys, "argv", test_args)
 
-    with pytest.raises(Exception, match="stop"):
+    with pytest.raises(Exception, match = "stop"):
         main()
 
     mock_check.assert_not_called()
